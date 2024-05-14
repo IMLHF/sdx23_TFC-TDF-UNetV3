@@ -4,6 +4,9 @@ import yaml
 from ml_collections import ConfigDict
 from my_submission.src.tfc_tdf_v3 import TFC_TDF_net
 import warnings
+import soundfile as sf
+import tqdm
+
 warnings.filterwarnings("ignore")
 
 ckpt_path = 'my_submission/ckpts/tfc_tdf'
@@ -15,8 +18,10 @@ model_names = ['model1', 'model2', 'model3']
 def load_model(path):
     with open(path+'/config.yaml') as f:
         config = ConfigDict(yaml.load(f, Loader=yaml.FullLoader))
-    model = TFC_TDF_net(config).eval().cuda()
-    model.load_state_dict(torch.load(path+'/ckpt'))
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = TFC_TDF_net(config).eval().to(device)
+    mdict = torch.load(path+'/ckpt') if torch.cuda.is_available() else torch.load(path+'/ckpt', map_location=device)
+    model.load_state_dict(mdict)
     return model
 
 
@@ -64,7 +69,8 @@ class MusicSeparationModel:
         L = mix.shape[1]    
         pad_size = H-(L-C)%H
         mix = torch.cat([torch.zeros(2,C-H), mix, torch.zeros(2,pad_size + C-H)], 1)
-        mix = mix.cuda()
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        mix = mix.to(device)
 
         chunks = []
         i = 0
@@ -80,7 +86,8 @@ class MusicSeparationModel:
             i = i + batch_size
 
         X = torch.zeros(S,2,C-H) if S > 1 else torch.zeros(2,C-H)
-        X = X.cuda()
+        if torch.cuda.is_available():
+            X = X.cuda()
         with torch.cuda.amp.autocast():
             with torch.no_grad():
                 for batch in batches:
@@ -97,3 +104,29 @@ class MusicSeparationModel:
             return {k:v for k,v in zip(config.training.instruments, estimated_sources.cpu().numpy())}
         else:
             return estimated_sources.cpu().numpy()
+        
+def test_one(wav_path, model):
+    instruments = ['bass', 'drums', 'other', 'vocals']
+    mixed_sound_array = sf.read(wav_path)[0]
+    # print(mixed_sound_array.shape)
+    sample_rate = 44100
+    separated_music_arrays, output_sample_rates = model.separate_music_file(mixed_sound_array, sample_rate)
+    for instrument in instruments:
+        # print(instrument, separated_music_arrays[instrument].shape, output_sample_rates[instrument])
+        sf.write(f'{wav_path[:-4]}-{instrument}-tfctdf.wav', separated_music_arrays[instrument], output_sample_rates[instrument])
+
+if __name__ == '__main__':
+    model = MusicSeparationModel()
+
+    paths = [
+        # 'MUSDB18HQ-test/test/AM Contra - Heart Peripheral/mixture.wav',
+        'MUSDB18HQ-test/stest/蔡琴-渡口.wav',
+        'MUSDB18HQ-test/stest/李健-贝加尔湖畔.wav',
+        'MUSDB18HQ-test/stest/王菲-红豆_01.wav',
+        'MUSDB18HQ-test/stest/周杰伦-稻香.wav',
+        'MUSDB18HQ-test/stest/周深-起风了.wav'
+        ]
+
+    for path in tqdm.tqdm(paths, ncols=50, desc="Processing"):
+        test_one(path, model)
+

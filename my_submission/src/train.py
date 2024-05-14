@@ -64,7 +64,7 @@ def train():
     
     print('Train Loop')
     scaler = GradScaler()    
-    for batch in tqdm(train_loader):   
+    for batch in tqdm(train_loader, ncols=50):   
 
         y = batch.to(device)
         x = y.sum(1)  # mixture   

@@ -3,6 +3,9 @@ import torch
 from demucs import pretrained
 from demucs.apply import apply_model
 import warnings
+import soundfile as sf
+import tqdm
+
 warnings.filterwarnings("ignore")
 
 ckpt_path = 'my_submission/ckpts/demucs'
@@ -71,7 +74,31 @@ class MusicSeparationModel:
         estimated_sources = estimates * std + mean
         
         return {k:v for k,v in zip(model.sources, estimated_sources.cpu().numpy())}
-    
+
+def test_one(wav_path, model):
+    instruments = ['bass', 'drums', 'other', 'vocals']
+    mixed_sound_array = sf.read(wav_path)[0]
+    # print(mixed_sound_array.shape)
+    sample_rate = 44100
+    separated_music_arrays, output_sample_rates = model.separate_music_file(mixed_sound_array, sample_rate)
+    for instrument in instruments:
+        # print(instrument, separated_music_arrays[instrument].shape, output_sample_rates[instrument])
+        sf.write(f'{wav_path[:-4]}-{instrument}-demucs.wav', separated_music_arrays[instrument], output_sample_rates[instrument])
+
+if __name__ == '__main__':
+    model = MusicSeparationModel()
+
+    paths = [
+        # 'MUSDB18HQ-test/test/AM Contra - Heart Peripheral/mixture.wav',
+        'MUSDB18HQ-test/stest/蔡琴-渡口.wav',
+        'MUSDB18HQ-test/stest/李健-贝加尔湖畔.wav',
+        'MUSDB18HQ-test/stest/王菲-红豆_01.wav',
+        'MUSDB18HQ-test/stest/周杰伦-稻香.wav',
+        'MUSDB18HQ-test/stest/周深-起风了.wav'
+        ]
+
+    for path in tqdm.tqdm(paths, ncols=50, desc="Processing"):
+        test_one(path, model)
     
 
 
