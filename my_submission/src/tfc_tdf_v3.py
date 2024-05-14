@@ -181,6 +181,7 @@ class TFC_TDF_net(nn.Module):
     
     def cac2cws(self, x):
         k = self.num_subbands
+        # print(x.shape, 'cac2cws')
         b,c,f,t = x.shape
         x = x.reshape(b,c,k,f//k,t)
         x = x.reshape(b,c*k,f//k,t)
@@ -194,6 +195,7 @@ class TFC_TDF_net(nn.Module):
         return x
     
     def forward(self, x):
+        # print(x.shape, 'tfc_tdf_net.inp') # [b, c, L]
         
         x = self.stft(x)
         
@@ -233,3 +235,47 @@ class TFC_TDF_net(nn.Module):
         return x
     
     
+if __name__ == '__main__':
+    from ml_collections import ConfigDict
+    import yaml
+    with open('my_submission/ckpts/tfc_tdf/model3/config.yaml') as f:
+        config = ConfigDict(yaml.load(f, Loader=yaml.FullLoader))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = TFC_TDF_net(config).to(device)
+
+    # from torchstat import stat
+    # stat(model, (2, 260096))
+
+    from thop import profile
+    macs, params = profile(model, inputs=(torch.randn(1, 2, 260096).to(device), ))
+    print("Number of GMACs/s:", macs/1e9/(260096/44100))
+    print("Number of Gparameters:", params/1e9)
+    '''
+    model1
+    Number of GMACs/s: 73.80389321574803
+    Number of Gparameters: 0.04575744
+
+    model2
+    Number of GMACs/s: 230.0513349543307
+    Number of Gparameters: 0.089629696
+
+    model3
+    Number of GMACs/s: 73.66735128188976
+    Number of Gparameters: 0.045751296
+    '''
+
+    # from demucs import pretrained
+    # import demucs
+    # from demucs.apply import apply_model
+    # torch.hub.set_dir('./my_submission/ckpts/demucs/')
+    # hdemucs_mmi = pretrained.get_model(name='hdemucs_mmi').eval().to(device)
+    # htdemucs_ft = pretrained.get_model(name='htdemucs_ft').eval().to(device)
+    # shifts = 2
+    # overlap = 0.5
+    # # estimates = apply_model(hdemucs_mmi, torch.randn(1, 2, 260096).to(device), shifts=shifts, overlap=overlap, split=True)
+
+    # macs, params = profile(apply_model, inputs=(hdemucs_mmi, torch.randn(1, 2, 260096).to(device), shifts, True, overlap,))
+    # print("Number of GMACs/s:", macs/1e9/(260096/44100))
+    # print("Number of Gparameters:", params/1e9)
+
+
