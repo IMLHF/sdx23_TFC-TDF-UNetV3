@@ -30,7 +30,7 @@ class MSSDatasets(torch.utils.data.Dataset):
                 metadata = []
                 track_paths = sorted(glob(data_path+'/*'))
                 track_paths = [path for path in track_paths if os.path.basename(path)[0]!='.' and os.path.isdir(path)]
-                for path in tqdm(track_paths):
+                for path in tqdm(track_paths, ncols=50, desc='Collecting metadata'):
                     length = len(sf.read(path+f'/{instruments[0]}.wav')[0])
                     metadata.append((path, length))
                 pickle.dump(metadata, open(metadata_path, 'wb'))
